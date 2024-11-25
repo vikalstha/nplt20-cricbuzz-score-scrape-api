@@ -6,24 +6,34 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
 import pytz
+from flask_caching import Cache
+from flask_compress import Compress
 
 # Replace the CORS URL with your's
 app = Flask(__name__)
 app.json.sort_keys = False
+
+app.config['CACHE_TYPE'] = 'RedisCache'
+app.config['CACHE_REDIS_HOST'] = 'redis'
+app.config['CACHE_REDIS_PORT'] = 6379
+app.config['CACHE_DEFAULT_TIMEOUT'] = 60
+cache = Cache(app)
+Compress(app)
+
 cors = CORS(app, resources={
-            r"/score/*": {"origins": [r'^https://.+sanweb.info$', r'^https://.+mskian.com$']}})
+            r"/score/*": {"origins": [r'^https://.+mantrasolution.com.np$']}})
 
 user_agent_list = [
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36',
     'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/111.0',
     'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0',
-    # 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
-    # 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
-    # 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36',
-    # 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15',
-    # 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/111.0.5563.116 Mobile DuckDuckGo/5 Safari/537.36',
-    # 'Mozilla/5.0 (Linux; Android 13; Pixel 6a) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
-    # 'Mozilla/5.0 (Android 10; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0'
+    'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15',
+    'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/111.0.5563.116 Mobile DuckDuckGo/5 Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 13; Pixel 6a) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Android 10; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0'
 ]
 get_random_agent = random.choice(user_agent_list)
 
@@ -35,7 +45,7 @@ headers = {
 
 @app.route('/')
 def hello():
-    return jsonify({'Code': 200, 'message': 'Python - Free Cricket Score API - JSON'})
+    return jsonify({'Code': 200, 'message': 'NPL T20 Live Score API - JSON'})
 
 
 @app.route('/score', methods=['GET'])
@@ -252,6 +262,7 @@ def score():
 
 
 @app.route('/score/live', methods=['GET'])
+@cache.cached(timeout=60)  # Cache for 60 seconds
 def live():
     get_id = request.args.get('id')
     id = escape(get_id)
@@ -411,6 +422,7 @@ def live():
             status = match_date
         else:
             status = 'Match Stats will Update Soon...'
+        cache.delete("/score/live")
         return jsonify({
             "success": 'true',
             "livescore": {
@@ -527,10 +539,10 @@ def invalid_route(e):
 
     })
 
+@app.after_request
+def add_cache_headers(response):
+    response.headers['Cache-Control'] = 'public, max-age=60'
+    return response
 
 if __name__ == '__main__':
-    app.run()
-    # app.run(
-    #    host="0.0.0.0",
-    #    port=int("5000")
-    # )
+    app.run(host='0.0.0.0', port=5000)

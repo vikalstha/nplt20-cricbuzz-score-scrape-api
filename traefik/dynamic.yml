@@ -1,0 +1,26 @@
+http:
+  middlewares:
+    secureHeaders:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        sslRedirect: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+
+  routers:
+    flask:
+      rule: "Host(`nplt20mantrasolution.com.np`)"
+      service: flask
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+
+services:
+  flask:
+    loadBalancer:
+      servers:
+        - url: "http://flask:5000"

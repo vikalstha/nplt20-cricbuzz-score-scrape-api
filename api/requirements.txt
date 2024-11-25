@@ -20,3 +20,7 @@ soupsieve==2.5
 urllib3==2.1.0
 werkzeug==3.0.1
 zipp==3.17.0
+gunicorn==21.1.0
+flask-caching
+redis
+Flask-Compress

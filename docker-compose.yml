@@ -1,0 +1,50 @@
+version: '3.9'
+
+services:
+  flask:
+    build:
+      context: .
+    container_name: flask-app
+    restart: always
+    depends_on:
+      - redis
+    environment:
+      FLASK_ENV: production
+      CACHE_REDIS_HOST: redis
+      CACHE_REDIS_PORT: 6379
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flask.rule=Host(`nplt20.mantrasolution.com.np`)"
+      - "traefik.http.routers.flask.entrypoints=websecure"
+      - "traefik.http.routers.flask.tls.certresolver=letsencrypt"
+      - "traefik.http.services.flask.loadbalancer.server.port=5000"
+
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    restart: always
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik/traefik.yml:/etc/traefik/traefik.yml:ro"
+      - "./traefik/acme.json:/letsencrypt/acme.json"
+
+  redis:
+    image: redis:alpine
+    restart: always
+    container_name: redis
+    command: redis-server --appendonly yes
+    volumes:
+      - ./_redis_data:/var/lib/redis
+      - ./redis/rc.local:/etc/rc.local
+    #ports:
+    #  - 6379:6379
