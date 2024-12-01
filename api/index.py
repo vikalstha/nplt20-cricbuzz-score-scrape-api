@@ -23,6 +23,8 @@ Compress(app)
 cors = CORS(app, resources={
             r"/score/*": {"origins": [r'^https://.+mantrasolution.com.np$']}})
 
+CRICINFO_MATCH_URL = "https://www.espncricinfo.com/series/nepal-premier-league-2024-25-1462594/biratnagar-kings-npl-vs-janakpur-bolts-npl-1st-match-1462596/live-cricket-score"
+
 user_agent_list = [
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36',
     'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/111.0',
@@ -482,51 +484,37 @@ def live():
         })
 
 @app.route('/cricinfo/live', methods=['GET'])
-@cache.cached(timeout=60)  # Cache for 60 seconds
-def fetch_cricket_data(match_url):
-    get_id = request.args.get('id')
-    id = escape(get_id)
-    if id:
-        session_object = requests.Session()
-        r = session_object.get(CRICINFO_MATCH_URL, headers=headers)
-        soup = bs(r.content, 'lxml')
+# @cache.cached(timeout=60)  # Cache for 60 seconds
+def livescore():
+    session_object = requests.Session()
+    response = session_object.get(CRICINFO_MATCH_URL, headers=headers)
+    soup = bs(response.content, 'html.parser')
+    if response.status_code != 200:
+        return {"success": "false", "error": "Failed to fetch data from ESPNcricinfo"}
 
-	if response.status_code != 200:
-        	return {"success": "false", "error": "Failed to fetch data from ESPNcricinfo"}
+    try:
+        title = soup.find("h1", class_="ds-text-tight-l ds-font-bold ds-text-ui-typo").text.strip() if soup.find("h1", class_="ds-text-tight-l ds-font-bold ds-text-ui-typo") else "Data Not Found"
+        update = soup.find("span", class_="ds-text-tight-m ds-font-regular ds-truncate ds-text-typo-title").text.strip() if soup.find("span", class_="ds-text-tight-m ds-font-regular ds-truncate ds-text-typo-title") else "Data Not Found"
+        current_score = soup.find("div", class_="ds-text-tight-m ds-font-bold ds-text-typo-title").text.strip() if soup.find("div", class_="ds-text-tight-m ds-font-bold ds-text-typo-title") else "Data Not Found"
+        run_rate = soup.find("div", class_="ds-text-tight-m ds-text-typo-title").text.strip() if soup.find("div", class_="ds-text-tight-m ds-text-typo-title") else "Data Not Found"
+        batsman_data = []
+        batsmen_rows = soup.find_all("tr", class_="ds-border-b ds-border-line")
+        for row in batsmen_rows:
+            cells = row.find_all("td")
+            if len(cells) >= 5:  # To ensure data completeness
+                batsman_data.append({
+                    "batsman": cells[0].text.strip(),
+                    "runs": cells[2].text.strip(),
+                    "balls": cells[3].text.strip(),
+                    "strike_rate": cells[4].text.strip()
+                })
 
-	soup = BeautifulSoup(response.content, 'html.parser')
-
-	try:
-        	# Extracting Match Title
-        	title = soup.find("h1", class_="ds-text-tight-l ds-font-bold ds-text-ui-typo").text.strip() if soup.find("h1", class_="ds-text-tight-l ds-font-bold ds-text-ui-typo") else "Data Not Found"
-        	# Extracting Match Update
-        	update = soup.find("span", class_="ds-text-tight-m ds-font-regular ds-truncate ds-text-typo-title").text.strip() if soup.find("span", class_="ds-text-tight-m ds-font-regular ds-truncate ds-text-typo-title") else "Data Not Found"
-        	# Extracting Current Score
-        	current_score = soup.find("div", class_="ds-text-tight-m ds-font-bold ds-text-typo-title").text.strip() if soup.find("div", class_="ds-text-tight-m ds-font-bold ds-text-typo-title") else "Data Not Found"
-
-        	# Extracting Run Rate
-        	run_rate = soup.find("div", class_="ds-text-tight-m ds-text-typo-title").text.strip() if soup.find("div", class_="ds-text-tight-m ds-text-typo-title") else "Data Not Found"
-
-        	# Extracting Batting Data
-        	batsman_data = []
-        	batsmen_rows = soup.find_all("tr", class_="ds-border-b ds-border-line")
-        	for row in batsmen_rows:
-            		cells = row.find_all("td")
-            		if len(cells) >= 5:  # To ensure data completeness
-                		batsman_data.append({
-                    			"batsman": cells[0].text.strip(),
-                    			"runs": cells[2].text.strip(),
-                    			"balls": cells[3].text.strip(),
-                    			"strike_rate": cells[4].text.strip()
-                			})
-
-        	# Extracting Bowling Data
-        	bowler_data = []
-        	bowler_rows = soup.find_all("tr", class_="ds-border-b ds-border-line")
-        	for row in bowler_rows:
-            		cells = row.find_all("td")
-            		if len(cells) >= 6:  # To ensure data completeness
-                		bowler_data.append({
+        bowler_data = []
+        bowler_rows = soup.find_all("tr", class_="ds-border-b ds-border-line")
+        for row in bowler_rows:
+            cells = row.find_all("td")
+            if len(cells) >= 6:  # To ensure data completeness
+                bowler_data.append({
                     "bowler": cells[0].text.strip(),
                     "overs": cells[1].text.strip(),
                     "maidens": cells[2].text.strip(),
@@ -535,7 +523,6 @@ def fetch_cricket_data(match_url):
                     "economy": cells[5].text.strip()
                 })
 
-        # Extracting Match Date and Time
         match_date_element = soup.find('span', itemprop='startDate')
         if match_date_element:
             match_time = match_date_element.get('content')
@@ -550,7 +537,6 @@ def fetch_cricket_data(match_url):
         else:
             match_date = "Data Not Found"
 
-        # Generate the response
         return {
             "success": "true",
             "livescore": {
@@ -566,7 +552,6 @@ def fetch_cricket_data(match_url):
 
     except Exception as e:
         return {"success": "false", "error": str(e)}
-
 
 @app.errorhandler(404)
 def invalid_route(e):
